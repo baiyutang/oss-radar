@@ -7,8 +7,11 @@ import { generateComparison } from "@/lib/ai"
 import { checkNarrativeRateLimit } from "@/lib/ratelimit"
 import { recordComparison } from "@/lib/leaderboard"
 import { ScoreBar } from "@/components/ScoreBar"
+import { ScoreRing } from "@/components/ScoreRing"
 import { StatCard } from "@/components/StatCard"
-import { isValidRepoPart } from "@/lib/utils"
+import { CopyLinkButton } from "@/components/CopyLinkButton"
+import { DetailsToggle } from "@/components/DetailsToggle"
+import { isValidRepoPart, getClientIp } from "@/lib/utils"
 import Link from "next/link"
 
 interface Props {
@@ -49,7 +52,7 @@ async function Narrative({
   dataB: RepoData
   scoreB: ReturnType<typeof score>
 }) {
-  const ip = (await headers()).get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown"
+  const ip = getClientIp(await headers())
   const { allowed, retryAfterMinutes } = await checkNarrativeRateLimit(ip)
 
   if (!allowed) {
@@ -67,7 +70,7 @@ async function Narrative({
   if (!narrative) return null
   return (
     <div className="bg-white rounded-2xl p-5 mb-5 border border-gray-100">
-      <div className="text-xs text-emerald-600 font-medium mb-2">AI 综合分析</div>
+      <div className="text-xs text-blue-600 font-medium mb-2">AI 综合分析</div>
       <p className="text-gray-700 text-sm leading-relaxed">{narrative}</p>
     </div>
   )
@@ -76,7 +79,7 @@ async function Narrative({
 function NarrativeSkeleton() {
   return (
     <div className="bg-white rounded-2xl p-5 mb-5 border border-gray-100">
-      <div className="text-xs text-emerald-600 font-medium mb-2">AI 综合分析</div>
+      <div className="text-xs text-blue-600 font-medium mb-2">AI 综合分析</div>
       <div className="space-y-2 animate-pulse">
         <div className="h-3 bg-gray-100 rounded w-full" />
         <div className="h-3 bg-gray-100 rounded w-5/6" />
@@ -126,7 +129,7 @@ export default async function ComparePage({ params }: Props) {
     metaA = scoreMeta(dataA, scoreA)
     metaB = scoreMeta(dataB, scoreB)
 
-    const ip = (await headers()).get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown"
+    const ip = getClientIp(await headers())
     after(() => recordComparison(dataA!.full_name, dataB!.full_name, ip))
   } catch (e: any) {
     if (e instanceof GitHubApiError && e.status === 403) {
@@ -151,6 +154,10 @@ export default async function ComparePage({ params }: Props) {
   }
 
   const winnerTotal = scoreA.total > scoreB.total ? "a" : scoreB.total > scoreA.total ? "b" : "tie"
+  // Below this gap, the two projects are close enough that calling one a
+  // clear "leader" would overstate the confidence the data supports.
+  const CLOSE_SCORE_GAP = 10
+  const isCloseCall = Math.abs(scoreA.total - scoreB.total) < CLOSE_SCORE_GAP
 
   const sides = [
     { data: dataA, s: scoreA, meta: metaA, name: nameA, side: "a" as const },
@@ -167,26 +174,61 @@ export default async function ComparePage({ params }: Props) {
         </div>
 
         {/* Repo cards */}
-        <div className="grid grid-cols-[1fr_auto_1fr] gap-4 items-center mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] gap-4 items-center mb-6">
           {sides.map(({ data, s, side }, i) => (
             <Fragment key={data.full_name}>
-              {i === 1 && <div className="text-gray-300 font-bold text-xl text-center">VS</div>}
-              <div className={`bg-white rounded-2xl p-5 border-2 transition-colors ${
-                winnerTotal === side ? "border-emerald-400" : "border-transparent"
-              }`}>
-                <div className="text-xs text-gray-400 mb-1">
-                  {data.language} · {data.license || "无许可证"}
-                  {data.has_security_policy && (
-                    <span className="ml-2 text-emerald-500">✓ SECURITY</span>
+              {i === 1 && (
+                <div className="flex flex-col items-center gap-1">
+                  <div className="text-gray-300 font-bold text-xl">VS</div>
+                  {isCloseCall && (
+                    <span className="text-[10px] text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full whitespace-nowrap">
+                      势均力敌
+                    </span>
                   )}
                 </div>
-                <div className="font-bold text-gray-900 text-lg leading-tight">{data.full_name}</div>
-                <div className="text-sm text-gray-500 mt-1 line-clamp-2">{data.description}</div>
-                <div className={`mt-3 text-2xl font-black ${winnerTotal === side ? "text-emerald-500" : "text-gray-700"}`}>
-                  {s.total}
-                  <span className="text-sm font-normal text-gray-400 ml-1">/100</span>
+              )}
+              <div className={`relative bg-white rounded-2xl p-5 border-2 transition-colors ${
+                winnerTotal === side && !isCloseCall ? "border-emerald-400" : "border-transparent"
+              }`}>
+                {winnerTotal === side && !isCloseCall && (
+                  <span className="absolute -top-2.5 right-4 bg-emerald-500 text-white text-[10px] font-medium px-2 py-0.5 rounded-full">
+                    评分领先
+                  </span>
+                )}
+                <div className="flex items-start gap-3">
+                  {data.avatar_url && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={data.avatar_url}
+                      alt=""
+                      width={40}
+                      height={40}
+                      className="w-10 h-10 rounded-lg shrink-0"
+                    />
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <div className="text-xs text-gray-400 mb-1">
+                      {data.language} · {data.license || "无许可证"}
+                      {data.has_security_policy && (
+                        <span className="ml-2 text-blue-500">✓ SECURITY</span>
+                      )}
+                    </div>
+                    <a
+                      href={`https://github.com/${data.full_name}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-bold text-gray-900 text-lg leading-tight hover:text-blue-600 hover:underline inline-flex items-center gap-1"
+                    >
+                      {data.full_name}
+                      <span className="text-xs text-gray-300 font-normal">↗</span>
+                    </a>
+                    <div className="text-sm text-gray-500 mt-1 line-clamp-2">{data.description}</div>
+                  </div>
                 </div>
-                <div className="text-xs text-gray-400">{verdict(s)}</div>
+                <div className="flex items-center justify-between mt-4">
+                  <div className="text-xs text-gray-400">{verdict(s)}</div>
+                  <ScoreRing value={s.total} highlight={winnerTotal === side && !isCloseCall} size={72} />
+                </div>
               </div>
             </Fragment>
           ))}
@@ -221,44 +263,50 @@ export default async function ComparePage({ params }: Props) {
         </div>
 
         {/* Per-repo detail cards */}
-        <div className="grid grid-cols-2 gap-4 mb-5">
-          {sides.map(({ data, meta }) => (
-            <div key={data.full_name} className="bg-white rounded-2xl p-4 border border-gray-100">
-              <div className="text-xs text-gray-400 font-medium mb-3">{data.full_name}</div>
-              <div className="grid grid-cols-2 gap-2 mb-3">
-                <StatCard label="Stars" value={fmt(data.stars)} />
-                <StatCard label="Forks" value={fmt(data.forks)} />
-                <StatCard label="30天提交" value={data.commits_30d} />
-                <StatCard label="PR关闭率" value={`${Math.round(data.pr_closure_ratio * 100)}%`} sub="merged/(merged+open)" />
-                <StatCard label="30天贡献者" value={data.contributors_30d} />
-                <StatCard
-                  label="首次响应"
-                  value={data.issue_response_days !== null ? `${data.issue_response_days.toFixed(1)}天` : "N/A"}
-                  sub="Issue中位数"
-                />
+        <DetailsToggle>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
+            {sides.map(({ data, meta }) => (
+              <div key={data.full_name} className="bg-white rounded-2xl p-4 border border-gray-100">
+                <div className="text-xs text-gray-400 font-medium mb-3">{data.full_name}</div>
+                <div className="grid grid-cols-2 gap-2 mb-3">
+                  <StatCard label="Stars" value={fmt(data.stars)} />
+                  <StatCard label="Forks" value={fmt(data.forks)} />
+                  <StatCard label="30天提交" value={data.commits_30d} />
+                  <StatCard label="PR关闭率" value={`${Math.round(data.pr_closure_ratio * 100)}%`} sub="merged/(merged+open)" />
+                  <StatCard label="30天贡献者" value={data.contributors_30d} />
+                  <StatCard
+                    label="首次响应"
+                    value={data.issue_response_days !== null ? `${data.issue_response_days.toFixed(1)}天` : "N/A"}
+                    sub="Issue中位数"
+                  />
+                </div>
+                <div className="space-y-1.5 text-xs text-gray-500">
+                  <div className="flex gap-1.5">
+                    <span className={data.elephant_score >= 70 ? "text-blue-500" : data.elephant_score >= 40 ? "text-amber-500" : "text-rose-400"}>●</span>
+                    <span>{meta.community_signal}</span>
+                  </div>
+                  <div className="flex gap-1.5">
+                    <span className={data.has_security_policy ? "text-blue-500" : "text-amber-500"}>●</span>
+                    <span>{meta.stability_signal}</span>
+                  </div>
+                  {data.releases[0] && (
+                    <div className="text-gray-400">最新发布：{data.releases[0].tag} ({daysSince(data.releases[0].date)})</div>
+                  )}
+                  <div className="text-gray-400">
+                    核心贡献者：{data.top_contributors.slice(0, 3).map((c) => c.login).join(" · ")}
+                  </div>
+                </div>
               </div>
-              <div className="space-y-1.5 text-xs text-gray-500">
-                <div className="flex gap-1.5">
-                  <span className={data.elephant_score >= 70 ? "text-emerald-500" : data.elephant_score >= 40 ? "text-amber-500" : "text-red-400"}>●</span>
-                  <span>{meta.community_signal}</span>
-                </div>
-                <div className="flex gap-1.5">
-                  <span className={data.has_security_policy ? "text-emerald-500" : "text-amber-500"}>●</span>
-                  <span>{meta.stability_signal}</span>
-                </div>
-                {data.releases[0] && (
-                  <div className="text-gray-400">最新发布：{data.releases[0].tag} ({daysSince(data.releases[0].date)})</div>
-                )}
-                <div className="text-gray-400">
-                  核心贡献者：{data.top_contributors.slice(0, 3).map((c) => c.login).join(" · ")}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        </DetailsToggle>
 
-        <div className="text-center text-xs text-gray-300">
-          分享此链接即可保存对比结果 · 权重基于 CHAOSS Starter Project Health Model
+        <div className="text-center text-xs text-gray-300 space-x-2">
+          <span>分享此链接即可保存对比结果</span>
+          <span>·</span>
+          <CopyLinkButton />
+          <span>·</span>
+          <span>权重基于 CHAOSS Starter Project Health Model</span>
         </div>
       </div>
     </main>

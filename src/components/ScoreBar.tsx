@@ -9,8 +9,11 @@ interface Props {
   basis?: string
 }
 
+// Emerald is reserved for "overall winner" elsewhere on the page, so this
+// per-dimension good/medium/bad scale uses blue/gray/rose instead — keeping
+// the two signals visually distinct.
 const color = (v: number) =>
-  v >= 70 ? "bg-emerald-500" : v >= 45 ? "bg-amber-400" : "bg-red-400"
+  v >= 70 ? "bg-blue-500" : v >= 45 ? "bg-gray-300" : "bg-rose-400"
 
 export function ScoreBar({ label, valueA, valueB, nameA, nameB, basis }: Props) {
   const winner = valueA > valueB ? "a" : valueB > valueA ? "b" : "tie"

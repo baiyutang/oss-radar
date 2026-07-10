@@ -37,7 +37,7 @@ export default function RootLayout({
             <span className="text-gray-200">·</span>
             <span>评分基于 <a href="https://chaoss.community" target="_blank" rel="noopener noreferrer" className="hover:text-gray-600 underline underline-offset-2">CHAOSS</a> 框架</span>
             <span className="text-gray-200">·</span>
-            <a href="https://github.com" target="_blank" rel="noopener noreferrer" className="hover:text-gray-600">GitHub ↗</a>
+            <a href="https://github.com/baiyutang/oss-radar" target="_blank" rel="noopener noreferrer" className="hover:text-gray-600">GitHub ↗</a>
           </p>
         </footer>
       </body>

@@ -2,7 +2,14 @@ import { unstable_cache } from "next/cache"
 import { clamp } from "./utils"
 
 const GITHUB_API = "https://api.github.com"
-const FETCH_TIMEOUT_MS = 10_000
+// 20s — busier/larger repos return commit/PR payloads large enough that a
+// tighter timeout can abort mid-transfer (after headers/res.ok already
+// succeeded), which surfaces as a JSON-parse failure rather than a clean
+// timeout. This only affects the first (uncached) fetch of a given repo;
+// results are cached for 6 hours afterward. A cold fetch that still times
+// out shows a friendly "please retry" message, and retrying works because
+// whichever repo already succeeded is served from cache the second time.
+const FETCH_TIMEOUT_MS = 20_000
 
 const headers: HeadersInit = {
   Accept: "application/vnd.github+json",
@@ -23,6 +30,7 @@ export class GitHubApiError extends Error {
 export interface RepoData {
   full_name: string
   description: string
+  avatar_url: string
   stars: number
   forks: number
   open_issues: number
@@ -197,6 +205,7 @@ async function fetchRepoDataUncached(owner: string, repo: string): Promise<RepoD
   return {
     full_name: info.full_name,
     description: info.description || "",
+    avatar_url: info.owner?.avatar_url || "",
     stars: info.stargazers_count,
     forks: info.forks_count,
     open_issues: info.open_issues_count,
@@ -228,6 +237,9 @@ async function fetchRepoDataUncached(owner: string, repo: string): Promise<RepoD
 // Cache per owner/repo for 6 hours — 30-day activity metrics don't shift
 // meaningfully hour to hour, so this trades near-zero staleness risk for a
 // large cut in GitHub token usage and near-instant repeat comparisons.
+// Using unstable_cache (not the newer "use cache" directive) because "use
+// cache" requires opting into experimental Cache Components in
+// next.config.ts, which this project hasn't done.
 export const fetchRepoData = unstable_cache(
   fetchRepoDataUncached,
   ["fetch-repo-data"],

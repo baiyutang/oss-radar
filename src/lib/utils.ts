@@ -7,3 +7,7 @@ const REPO_PART_RE = /^[a-zA-Z0-9_.-]{1,100}$/
 export function isValidRepoPart(s: string): boolean {
   return REPO_PART_RE.test(s)
 }
+
+export function getClientIp(headers: Headers): string {
+  return headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown"
+}
