@@ -113,7 +113,8 @@ async function getIssueFirstResponseDays(owner: string, repo: string): Promise<n
     const valid = responseTimes.filter((v): v is number => v !== null)
     if (valid.length === 0) return null
     valid.sort((a, b) => a - b)
-    return valid[Math.floor(valid.length / 2)]
+    const mid = Math.floor(valid.length / 2)
+    return valid.length % 2 === 0 ? (valid[mid - 1] + valid[mid]) / 2 : valid[mid]
   } catch {
     return null
   }
@@ -150,7 +151,9 @@ async function getElephantScore(contributors: any[]): Promise<number> {
     const knownTotal = totalContribs - unknownContribs
     if (knownTotal === 0) return 50
 
-    const maxOrgShare = Math.max(...Object.values(knownOrgs)) / knownTotal
+    // Divide by totalContribs so anonymous contributors dilute org share
+    // rather than making a minority org appear to dominate.
+    const maxOrgShare = Math.max(...Object.values(knownOrgs)) / totalContribs
     return clamp((1 - maxOrgShare) * 130)
   } catch {
     return 50

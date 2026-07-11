@@ -3,7 +3,7 @@ import { join } from "node:path"
 import { ImageResponse } from "next/og"
 import { fetchRepoData } from "@/lib/github"
 import { score, isCloseCall } from "@/lib/scoring"
-import { isValidRepoPart } from "@/lib/utils"
+import { decodeRepoPart } from "@/lib/utils"
 
 export const size = { width: 1200, height: 630 }
 export const contentType = "image/png"
@@ -11,20 +11,6 @@ export const alt = "Open source health comparison"
 
 interface Props {
   params: Promise<{ repoA: string; repoB: string }>
-}
-
-function decodePart(raw: string): [string, string] | null {
-  try {
-    const decoded = decodeURIComponent(raw)
-    const slash = decoded.indexOf("/")
-    if (slash <= 0 || slash === decoded.length - 1) return null
-    const owner = decoded.slice(0, slash)
-    const name = decoded.slice(slash + 1)
-    if (!isValidRepoPart(owner) || !isValidRepoPart(name)) return null
-    return [owner, name]
-  } catch {
-    return null
-  }
 }
 
 function ScoreBlock({
@@ -68,8 +54,8 @@ function ScoreBlock({
 
 export default async function OgImage({ params }: Props) {
   const { repoA, repoB } = await params
-  const parsedA = decodePart(repoA)
-  const parsedB = decodePart(repoB)
+  const parsedA = decodeRepoPart(repoA)
+  const parsedB = decodeRepoPart(repoB)
 
   let nameA = parsedA ? parsedA.join("/") : "?"
   let nameB = parsedB ? parsedB.join("/") : "?"
@@ -133,7 +119,7 @@ export default async function OgImage({ params }: Props) {
                   borderRadius: 999,
                 }}
               >
-                Close call
+                势均力敌
               </div>
             )}
           </div>

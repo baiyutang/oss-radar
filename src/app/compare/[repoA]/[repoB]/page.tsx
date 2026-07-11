@@ -11,33 +11,19 @@ import { ScoreRing } from "@/components/ScoreRing"
 import { StatCard } from "@/components/StatCard"
 import { CopyLinkButton } from "@/components/CopyLinkButton"
 import { SaveImageButton } from "@/components/SaveImageButton"
-import { isValidRepoPart, getClientIp, fmtCompact, daysSince } from "@/lib/utils"
+import { decodeRepoPart, getClientIp, fmtCompact, daysSince } from "@/lib/utils"
 import Link from "next/link"
 
 interface Props {
   params: Promise<{ repoA: string; repoB: string }>
 }
 
-function safeDecodeRepo(raw: string): [string, string] | null {
-  try {
-    const decoded = decodeURIComponent(raw)
-    const slash = decoded.indexOf("/")
-    if (slash <= 0 || slash === decoded.length - 1) return null
-    const owner = decoded.slice(0, slash)
-    const name = decoded.slice(slash + 1)
-    if (!isValidRepoPart(owner) || !isValidRepoPart(name)) return null
-    return [owner, name]
-  } catch {
-    return null
-  }
-}
-
 // Built from route params only — no extra API calls, so metadata never slows
 // the page down or burns GitHub quota.
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { repoA, repoB } = await params
-  const parsedA = safeDecodeRepo(repoA)
-  const parsedB = safeDecodeRepo(repoB)
+  const parsedA = decodeRepoPart(repoA)
+  const parsedB = decodeRepoPart(repoB)
   if (!parsedA || !parsedB) {
     return { title: "OSS Radar — 开源项目健康度对比" }
   }
@@ -120,8 +106,8 @@ function NarrativeSkeleton() {
 export default async function ComparePage({ params }: Props) {
   const { repoA, repoB } = await params
 
-  const parsedA = safeDecodeRepo(repoA)
-  const parsedB = safeDecodeRepo(repoB)
+  const parsedA = decodeRepoPart(repoA)
+  const parsedB = decodeRepoPart(repoB)
 
   if (!parsedA || !parsedB) {
     return (

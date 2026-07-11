@@ -31,7 +31,8 @@ function narrativeCacheKey(
   scoreB: ScoreBreakdown,
   isCloseCall: boolean
 ): string {
-  return `narrative:v1:${AI_MODEL}:${a.full_name}:${scoreA.total}:${b.full_name}:${scoreB.total}:${isCloseCall ? 1 : 0}`
+  const modelSlug = AI_MODEL.replace(/:/g, "_")
+  return `narrative:v1:${modelSlug}:${a.full_name}:${scoreA.total}:${b.full_name}:${scoreB.total}:${isCloseCall ? 1 : 0}`
 }
 
 async function getCachedNarrative(key: string): Promise<string | null> {

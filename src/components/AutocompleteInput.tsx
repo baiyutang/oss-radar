@@ -42,13 +42,16 @@ export function AutocompleteInput({ placeholder, value, onChange, onSelect, onEn
       setLoading(true)
       try {
         const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`, { signal: controller.signal })
-        const data: Repo[] = await res.json()
         if (controller.signal.aborted) return
+        if (!res.ok) { setResults([]); setOpen(false); return }
+        const data: Repo[] = await res.json()
         setResults(data)
         setOpen(data.length > 0)
         setActiveIdx(-1)
       } catch {
         if (controller.signal.aborted) return
+        setResults([])
+        setOpen(false)
       }
       if (!controller.signal.aborted) setLoading(false)
     }, 300)

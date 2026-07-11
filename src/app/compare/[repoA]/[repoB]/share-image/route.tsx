@@ -6,26 +6,37 @@ import QRCode from "qrcode"
 import { fetchRepoData } from "@/lib/github"
 import { score, isCloseCall, DIMENSIONS, type ScoreBreakdown } from "@/lib/scoring"
 import { resolveNarrative } from "@/lib/ai"
-import { isValidRepoPart, getClientIp } from "@/lib/utils"
+import { decodeRepoPart, getClientIp } from "@/lib/utils"
 
 // The rich, downloadable share card (portrait, dimension bars + AI narrative).
 // The auto OG card next door stays minimal because platforms shrink it.
 
 const WIDTH = 1200
-const HEIGHT = 1600
 
-function decodePart(raw: string): [string, string] | null {
-  try {
-    const decoded = decodeURIComponent(raw)
-    const slash = decoded.indexOf("/")
-    if (slash <= 0 || slash === decoded.length - 1) return null
-    const owner = decoded.slice(0, slash)
-    const name = decoded.slice(slash + 1)
-    if (!isValidRepoPart(owner) || !isValidRepoPart(name)) return null
-    return [owner, name]
-  } catch {
-    return null
+// Satori needs fixed dimensions up front. We estimate height from content:
+// outer padding (112) + fixed sections + narrative lines + gaps + buffer.
+function calcHeight(narrative: string | null): number {
+  const PAD_V = 112        // 56px top + 56px bottom
+  const HEADER = 80
+  const SCORE_CARDS = 240
+  const DIMENSIONS_CARD = 510  // padding + title + 5 rows×(label+bar+gap)
+  const QR_CARD = 130
+  const GAP = 36
+
+  let narrativeCard = 0
+  if (narrative) {
+    // Inner text width: 1200 - 128 (outer pad) - 88 (card pad) = 984px
+    // CJK glyphs ~14px wide at fontSize 26; mixed text averages ~38 chars/line
+    const lines = Math.ceil(narrative.length / 38)
+    const lineH = Math.ceil(26 * 1.7)  // fontSize × lineHeight = ~45px
+    narrativeCard = 72 + 30 + lines * lineH + 20  // card-pad + title + text + buffer
   }
+
+  const sections = [HEADER, SCORE_CARDS, DIMENSIONS_CARD]
+  if (narrativeCard > 0) sections.push(narrativeCard)
+  sections.push(QR_CARD)
+
+  return PAD_V + sections.reduce((s, h) => s + h, 0) + (sections.length - 1) * GAP + 40
 }
 
 // Satori has no built-in fonts. Full CJK fonts are ~10MB, so the repo ships
@@ -84,8 +95,8 @@ export async function GET(
   { params }: { params: Promise<{ repoA: string; repoB: string }> }
 ) {
   const { repoA, repoB } = await params
-  const parsedA = decodePart(repoA)
-  const parsedB = decodePart(repoB)
+  const parsedA = decodeRepoPart(repoA)
+  const parsedB = decodeRepoPart(repoB)
   if (!parsedA || !parsedB) {
     return new Response("invalid repo", { status: 400 })
   }
@@ -106,9 +117,15 @@ export async function GET(
 
   // QR points back to this comparison so WeChat users can long-press the
   // saved image and scan straight through to the live page.
-  const host = req.headers.get("host") ?? "oss-radar.gokr.io"
-  const proto = host.startsWith("localhost") || host.startsWith("127.") ? "http" : "https"
-  const pageUrl = `${proto}://${host}/compare/${repoA}/${repoB}`
+  // NEXT_PUBLIC_SITE_URL (e.g. "https://oss-radar.gokr.io") is set in Vercel
+  // env vars and is the authoritative base. Falling back to the Host header
+  // is only safe in local dev where there is no reverse proxy to spoof it.
+  const requestHost = req.headers.get("host") ?? "oss-radar.gokr.io"
+  const isDev = requestHost.startsWith("localhost") || requestHost.startsWith("127.")
+  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL ?? (isDev ? `http://${requestHost}` : `https://${requestHost}`)
+  const segA = encodeURIComponent(`${parsedA[0]}/${parsedA[1]}`)
+  const segB = encodeURIComponent(`${parsedB[0]}/${parsedB[1]}`)
+  const pageUrl = `${baseUrl}/compare/${segA}/${segB}`
   const [latinFont, cjkFont, qrDataUrl] = await Promise.all([
     readFile(join(process.cwd(), "assets/Geist-SemiBold.ttf")),
     readFile(join(process.cwd(), "assets/NotoSansSC-Medium-Subset.ttf")),
@@ -119,6 +136,8 @@ export async function GET(
     { name: "Geist", data: latinFont, weight: 600 as const, style: "normal" as const },
     { name: "Noto Sans SC", data: cjkFont, weight: 500 as const, style: "normal" as const },
   ]
+
+  const HEIGHT = calcHeight(narrative)
 
   return new ImageResponse(
     (
@@ -196,7 +215,6 @@ export async function GET(
             alignItems: "center",
             justifyContent: "space-between",
             width: "100%",
-            marginTop: "auto",
             background: "#ffffff",
             borderRadius: 24,
             padding: "24px 44px",

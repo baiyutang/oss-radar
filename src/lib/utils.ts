@@ -16,6 +16,20 @@ export function fmtCompact(n: number): string {
   return n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n)
 }
 
+export function decodeRepoPart(raw: string): [string, string] | null {
+  try {
+    const decoded = decodeURIComponent(raw)
+    const slash = decoded.indexOf("/")
+    if (slash <= 0 || slash === decoded.length - 1) return null
+    const owner = decoded.slice(0, slash)
+    const name = decoded.slice(slash + 1)
+    if (!isValidRepoPart(owner) || !isValidRepoPart(name)) return null
+    return [owner, name]
+  } catch {
+    return null
+  }
+}
+
 export function daysSince(date: string): string {
   const d = Math.floor((Date.now() - new Date(date).getTime()) / 86400000)
   if (d === 0) return "今天"
