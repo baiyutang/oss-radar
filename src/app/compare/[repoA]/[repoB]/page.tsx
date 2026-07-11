@@ -10,6 +10,7 @@ import { ScoreBar } from "@/components/ScoreBar"
 import { ScoreRing } from "@/components/ScoreRing"
 import { StatCard } from "@/components/StatCard"
 import { CopyLinkButton } from "@/components/CopyLinkButton"
+import { SaveImageButton } from "@/components/SaveImageButton"
 import { isValidRepoPart, getClientIp, fmtCompact, daysSince } from "@/lib/utils"
 import Link from "next/link"
 
@@ -319,6 +320,8 @@ export default async function ComparePage({ params }: Props) {
           <span>分享此链接即可保存对比结果</span>
           <span>·</span>
           <CopyLinkButton />
+          <span>·</span>
+          <SaveImageButton />
           <span>·</span>
           <span>权重基于 CHAOSS Starter Project Health Model</span>
         </div>
