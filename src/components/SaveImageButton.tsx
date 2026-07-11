@@ -4,8 +4,8 @@ import { useRef, useState } from "react"
 
 type Status = "idle" | "saving" | "failed"
 
-// Downloads the comparison's OG share card (already generated server-side
-// at {pathname}/opengraph-image) as a local PNG.
+// Downloads the rich share card (scores + dimension bars + AI narrative,
+// rendered server-side at {pathname}/share-image) as a local PNG.
 export function SaveImageButton() {
   const [status, setStatus] = useState<Status>("idle")
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -15,7 +15,7 @@ export function SaveImageButton() {
     setStatus("saving")
     try {
       const path = window.location.pathname.replace(/\/$/, "")
-      const res = await fetch(`${path}/opengraph-image`)
+      const res = await fetch(`${path}/share-image`)
       if (!res.ok) throw new Error(String(res.status))
       const blob = await res.blob()
 
