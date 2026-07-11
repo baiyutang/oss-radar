@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises"
 import { join } from "node:path"
 import { NextRequest } from "next/server"
 import { ImageResponse } from "next/og"
+import QRCode from "qrcode"
 import { fetchRepoData } from "@/lib/github"
 import { score, isCloseCall, DIMENSIONS, type ScoreBreakdown } from "@/lib/scoring"
 import { resolveNarrative } from "@/lib/ai"
@@ -11,7 +12,7 @@ import { isValidRepoPart, getClientIp } from "@/lib/utils"
 // The auto OG card next door stays minimal because platforms shrink it.
 
 const WIDTH = 1200
-const HEIGHT = 1500
+const HEIGHT = 1600
 
 function decodePart(raw: string): [string, string] | null {
   try {
@@ -103,9 +104,15 @@ export async function GET(
   const narrativeResult = await resolveNarrative(dataA, sA, dataB, sB, close, ip)
   const narrative = narrativeResult.status === "ok" ? narrativeResult.text : null
 
-  const [latinFont, cjkFont] = await Promise.all([
+  // QR points back to this comparison so WeChat users can long-press the
+  // saved image and scan straight through to the live page.
+  const host = req.headers.get("host") ?? "oss-radar.gokr.io"
+  const proto = host.startsWith("localhost") || host.startsWith("127.") ? "http" : "https"
+  const pageUrl = `${proto}://${host}/compare/${repoA}/${repoB}`
+  const [latinFont, cjkFont, qrDataUrl] = await Promise.all([
     readFile(join(process.cwd(), "assets/Geist-SemiBold.ttf")),
     readFile(join(process.cwd(), "assets/NotoSansSC-Medium-Subset.ttf")),
+    QRCode.toDataURL(pageUrl, { width: 280, margin: 1, color: { dark: "#111827", light: "#ffffff" } }),
   ])
 
   const fonts = [
@@ -183,8 +190,25 @@ export async function GET(
           </div>
         )}
 
-        <div style={{ fontSize: 22, color: "#9ca3af", marginTop: "auto", display: "flex" }}>
-          oss-radar.gokr.io
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            width: "100%",
+            marginTop: "auto",
+            background: "#ffffff",
+            borderRadius: 24,
+            padding: "24px 44px",
+            border: "1px solid #f3f4f6",
+          }}
+        >
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <div style={{ fontSize: 26, color: "#374151", display: "flex" }}>长按识别二维码，查看实时对比</div>
+            <div style={{ fontSize: 22, color: "#9ca3af", display: "flex" }}>oss-radar.gokr.io · 数据每 6 小时更新</div>
+          </div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={qrDataUrl} alt="" width={140} height={140} style={{ borderRadius: 12 }} />
         </div>
       </div>
     ),
