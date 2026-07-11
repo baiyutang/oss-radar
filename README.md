@@ -16,6 +16,18 @@
 
 对比结果附带 AI 生成的简要选型建议（可选，需配置 Anthropic API Key）。
 
+## 健康度徽章
+
+在你的开源项目 README 中展示实时健康度评分：
+
+```markdown
+[![OSS Radar](https://oss-radar.gokr.io/badge/OWNER/REPO)](https://oss-radar.gokr.io)
+```
+
+徽章颜色随评分变化（绿 ≥78 / 蓝 ≥58 / 黄 ≥38 / 红 <38），数据每 6 小时刷新。
+
+分享任意对比页链接到社交媒体时，会自动生成带评分的预览卡片（Open Graph 图片）。
+
 ## 本地运行
 
 ```bash
