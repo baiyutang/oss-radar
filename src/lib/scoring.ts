@@ -114,11 +114,26 @@ export function scoreMeta(repo: RepoData, s: ScoreBreakdown): ScoreMeta {
   }
 }
 
+// Single source of truth for score bands — verdict text on the compare page
+// and badge colors both derive from these thresholds.
+export type ScoreBand = "excellent" | "active" | "maintained" | "attention"
+
+export function scoreBand(total: number): ScoreBand {
+  if (total >= 78) return "excellent"
+  if (total >= 58) return "active"
+  if (total >= 38) return "maintained"
+  return "attention"
+}
+
+const VERDICT_TEXT: Record<ScoreBand, string> = {
+  excellent: "非常健康",
+  active: "较为活跃",
+  maintained: "维护中",
+  attention: "需关注",
+}
+
 export function verdict(s: ScoreBreakdown): string {
-  if (s.total >= 78) return "非常健康"
-  if (s.total >= 58) return "较为活跃"
-  if (s.total >= 38) return "维护中"
-  return "需关注"
+  return VERDICT_TEXT[scoreBand(s.total)]
 }
 
 // Below this gap, the two projects are close enough that calling one a clear

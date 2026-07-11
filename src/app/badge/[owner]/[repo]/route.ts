@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { fetchRepoData } from "@/lib/github"
-import { score } from "@/lib/scoring"
+import { score, scoreBand, type ScoreBand } from "@/lib/scoring"
 import { isValidRepoPart } from "@/lib/utils"
 
 // Shields-style SVG badge: [ oss radar | 76/100 ] colored by score band.
@@ -11,11 +11,12 @@ import { isValidRepoPart } from "@/lib/utils"
 
 const LABEL = "oss radar"
 
-function bandColor(total: number): string {
-  if (total >= 78) return "#34c759" // 非常健康
-  if (total >= 58) return "#3b82f6" // 较为活跃
-  if (total >= 38) return "#f59e0b" // 维护中
-  return "#ef4444" // 需关注
+// Thresholds live in lib/scoring.ts (scoreBand) — this only maps band → color.
+const BAND_COLORS: Record<ScoreBand, string> = {
+  excellent: "#34c759",
+  active: "#3b82f6",
+  maintained: "#f59e0b",
+  attention: "#ef4444",
 }
 
 // Verdana-ish average glyph width at font-size 11 — the shields.io approach.
@@ -65,7 +66,7 @@ export async function GET(
   try {
     const data = await fetchRepoData(owner, repo)
     const s = score(data)
-    return svgResponse(renderBadge(`${s.total}/100`, bandColor(s.total)), 21_600)
+    return svgResponse(renderBadge(`${s.total}/100`, BAND_COLORS[scoreBand(s.total)]), 21_600)
   } catch {
     // Unknown repo or upstream failure — short cache so it recovers quickly.
     return svgResponse(renderBadge("unavailable", "#9ca3af"), 600)
