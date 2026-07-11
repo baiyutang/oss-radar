@@ -1,11 +1,12 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState } from "react"
 
 type Status = "idle" | "copied" | "failed"
 
 export function CopyLinkButton() {
   const [status, setStatus] = useState<Status>("idle")
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   async function handleCopy() {
     try {
@@ -14,7 +15,10 @@ export function CopyLinkButton() {
     } catch {
       setStatus("failed")
     }
-    setTimeout(() => setStatus("idle"), 1500)
+    // Clear any pending reset so a rapid second click gets its full display
+    // window instead of being cut short by the first click's timer.
+    if (timerRef.current) clearTimeout(timerRef.current)
+    timerRef.current = setTimeout(() => setStatus("idle"), 1500)
   }
 
   return (

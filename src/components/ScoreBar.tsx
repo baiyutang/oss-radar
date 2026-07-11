@@ -4,8 +4,6 @@ interface Props {
   label: string
   valueA: number
   valueB: number
-  nameA: string
-  nameB: string
   basis?: string
 }
 
@@ -15,7 +13,7 @@ interface Props {
 const color = (v: number) =>
   v >= 70 ? "bg-blue-500" : v >= 45 ? "bg-gray-300" : "bg-rose-400"
 
-export function ScoreBar({ label, valueA, valueB, nameA, nameB, basis }: Props) {
+export function ScoreBar({ label, valueA, valueB, basis }: Props) {
   const winner = valueA > valueB ? "a" : valueB > valueA ? "b" : "tie"
   return (
     <div className="mb-5">

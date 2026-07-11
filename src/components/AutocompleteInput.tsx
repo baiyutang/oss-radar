@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef, useCallback } from "react"
+import { fmtCompact } from "@/lib/utils"
 
 interface Repo {
   full_name: string
@@ -15,10 +16,6 @@ interface Props {
   onChange: (v: string) => void
   onSelect?: (full_name: string) => void
   onEnter?: () => void
-}
-
-function fmt(n: number) {
-  return n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n)
 }
 
 export function AutocompleteInput({ placeholder, value, onChange, onSelect, onEnter }: Props) {
@@ -134,7 +131,7 @@ export function AutocompleteInput({ placeholder, value, onChange, onSelect, onEn
                   {r.language && (
                     <span className="text-xs text-gray-400">{r.language}</span>
                   )}
-                  <span className="text-xs text-gray-400 ml-auto shrink-0">★ {fmt(r.stars)}</span>
+                  <span className="text-xs text-gray-400 ml-auto shrink-0">★ {fmtCompact(r.stars)}</span>
                 </div>
                 {r.description && (
                   <p className="text-xs text-gray-400 mt-0.5 truncate">{r.description}</p>

@@ -7,11 +7,18 @@ export async function generateComparison(
   a: RepoData,
   scoreA: ScoreBreakdown,
   b: RepoData,
-  scoreB: ScoreBreakdown
+  scoreB: ScoreBreakdown,
+  isCloseCall = false
 ): Promise<string | null> {
   if (!process.env.ANTHROPIC_API_KEY) return null
 
-  const prompt = `你是一个开源项目分析师。根据以下数据，用中文写一段简洁的项目对比分析（150字以内），给出明确的选型建议。
+  // Keep the AI's tone consistent with the UI badge: when scores are close
+  // the page shows "势均力敌", so the narrative must not flatly pick a winner.
+  const stance = isCloseCall
+    ? "两者综合评分接近，不要武断推荐某一方；请说明两者各自的优势维度，以及什么场景下更适合选哪个。"
+    : "给出明确的选型建议。"
+
+  const prompt = `你是一个开源项目分析师。根据以下数据，用中文写一段简洁的项目对比分析（150字以内）。${stance}
 
 项目A: ${a.full_name}
 - Stars: ${a.stars}, 近30天commits: ${a.commits_30d}, 贡献者: ${a.contributors_30d}

@@ -11,15 +11,11 @@ import { ScoreBar } from "@/components/ScoreBar"
 import { ScoreRing } from "@/components/ScoreRing"
 import { StatCard } from "@/components/StatCard"
 import { CopyLinkButton } from "@/components/CopyLinkButton"
-import { isValidRepoPart, getClientIp } from "@/lib/utils"
+import { isValidRepoPart, getClientIp, fmtCompact } from "@/lib/utils"
 import Link from "next/link"
 
 interface Props {
   params: Promise<{ repoA: string; repoB: string }>
-}
-
-function fmt(n: number): string {
-  return n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n)
 }
 
 function daysSince(date: string): string {
@@ -70,12 +66,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 async function Narrative({
-  dataA, scoreA, dataB, scoreB,
+  dataA, scoreA, dataB, scoreB, isCloseCall,
 }: {
   dataA: RepoData
   scoreA: ReturnType<typeof score>
   dataB: RepoData
   scoreB: ReturnType<typeof score>
+  isCloseCall: boolean
 }) {
   const ip = getClientIp(await headers())
   const { allowed, retryAfterMinutes } = await checkNarrativeRateLimit(ip)
@@ -91,7 +88,7 @@ async function Narrative({
     )
   }
 
-  const narrative = await generateComparison(dataA, scoreA, dataB, scoreB)
+  const narrative = await generateComparison(dataA, scoreA, dataB, scoreB, isCloseCall)
   if (!narrative) return null
   return (
     <div className="bg-white rounded-2xl p-5 mb-5 border border-gray-100">
@@ -184,9 +181,10 @@ export default async function ComparePage({ params }: Props) {
   const CLOSE_SCORE_GAP = 10
   const isCloseCall = Math.abs(scoreA.total - scoreB.total) < CLOSE_SCORE_GAP
 
+  // isLeader drives every winner visual (border, badge, ring) from one place.
   const sides = [
-    { data: dataA, s: scoreA, meta: metaA, name: nameA, side: "a" as const },
-    { data: dataB, s: scoreB, meta: metaB, name: nameB, side: "b" as const },
+    { data: dataA, s: scoreA, meta: metaA, isLeader: winnerTotal === "a" && !isCloseCall },
+    { data: dataB, s: scoreB, meta: metaB, isLeader: winnerTotal === "b" && !isCloseCall },
   ]
 
   return (
@@ -200,7 +198,7 @@ export default async function ComparePage({ params }: Props) {
 
         {/* Repo cards */}
         <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] gap-4 items-center mb-6">
-          {sides.map(({ data, s, side }, i) => (
+          {sides.map(({ data, s, isLeader }, i) => (
             <Fragment key={data.full_name}>
               {i === 1 && (
                 <div className="flex flex-col items-center gap-1">
@@ -213,9 +211,9 @@ export default async function ComparePage({ params }: Props) {
                 </div>
               )}
               <div className={`relative bg-white rounded-2xl p-5 border-2 transition-colors ${
-                winnerTotal === side && !isCloseCall ? "border-emerald-400" : "border-transparent"
+                isLeader ? "border-emerald-400" : "border-transparent"
               }`}>
-                {winnerTotal === side && !isCloseCall && (
+                {isLeader && (
                   <span className="absolute -top-2.5 right-4 bg-emerald-500 text-white text-[10px] font-medium px-2 py-0.5 rounded-full">
                     评分领先
                   </span>
@@ -224,10 +222,11 @@ export default async function ComparePage({ params }: Props) {
                   {data.avatar_url && (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
-                      src={data.avatar_url}
+                      src={`${data.avatar_url}${data.avatar_url.includes("?") ? "&" : "?"}s=80`}
                       alt=""
                       width={40}
                       height={40}
+                      loading="lazy"
                       className="w-10 h-10 rounded-lg shrink-0"
                     />
                   )}
@@ -252,7 +251,7 @@ export default async function ComparePage({ params }: Props) {
                 </div>
                 <div className="flex items-center justify-between mt-4">
                   <div className="text-xs text-gray-400">{verdict(s)}</div>
-                  <ScoreRing value={s.total} highlight={winnerTotal === side && !isCloseCall} size={72} />
+                  <ScoreRing value={s.total} highlight={isLeader} size={72} />
                 </div>
               </div>
             </Fragment>
@@ -261,7 +260,7 @@ export default async function ComparePage({ params }: Props) {
 
         {/* AI narrative — streamed in separately so it doesn't block the scores above */}
         <Suspense fallback={<NarrativeSkeleton />}>
-          <Narrative dataA={dataA} scoreA={scoreA} dataB={dataB} scoreB={scoreB} />
+          <Narrative dataA={dataA} scoreA={scoreA} dataB={dataB} scoreB={scoreB} isCloseCall={isCloseCall} />
         </Suspense>
 
         {/* Score breakdown */}
@@ -280,8 +279,6 @@ export default async function ComparePage({ params }: Props) {
               label={d.label}
               valueA={scoreA[d.key] as number}
               valueB={scoreB[d.key] as number}
-              nameA={dataA.full_name}
-              nameB={dataB.full_name}
               basis={d.basis}
             />
           ))}
@@ -293,8 +290,8 @@ export default async function ComparePage({ params }: Props) {
             <div key={data.full_name} className="bg-white rounded-2xl p-4 border border-gray-100">
               <div className="text-xs text-gray-400 font-medium mb-3">{data.full_name}</div>
               <div className="grid grid-cols-2 gap-2 mb-3">
-                <StatCard label="Stars" value={fmt(data.stars)} />
-                <StatCard label="Forks" value={fmt(data.forks)} />
+                <StatCard label="Stars" value={fmtCompact(data.stars)} />
+                <StatCard label="Forks" value={fmtCompact(data.forks)} />
                 <StatCard label="30天提交" value={data.commits_30d} />
                 <StatCard label="PR关闭率" value={`${Math.round(data.pr_closure_ratio * 100)}%`} sub="merged/(merged+open)" />
                 <StatCard label="30天贡献者" value={data.contributors_30d} />

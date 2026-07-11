@@ -38,30 +38,39 @@ export interface LeaderboardEntry {
   count: number
 }
 
+// Throws on Redis failure — errors must NOT be swallowed here, or the empty
+// result would be cached for the full revalidate window below.
 async function getTopComparisonsUncached(limit: number): Promise<LeaderboardEntry[]> {
   if (!redis) return []
+  const raw = await redis.zrange<string[]>(LEADERBOARD_KEY, 0, limit - 1, {
+    rev: true,
+    withScores: true,
+  })
+  const entries: LeaderboardEntry[] = []
+  for (let i = 0; i < raw.length; i += 2) {
+    const [a, b] = String(raw[i]).split("::")
+    if (!a || !b) continue
+    entries.push({ a, b, count: Number(raw[i + 1]) })
+  }
+  return entries
+}
+
+// Cached for 60s so a homepage traffic spike doesn't turn into a Redis read
+// per visitor; a comparison's count can lag up to a minute behind reality.
+const getTopComparisonsCached = unstable_cache(
+  getTopComparisonsUncached,
+  ["leaderboard-top"],
+  { revalidate: 60 }
+)
+
+// Error handling lives OUTSIDE the cache: a thrown error is never cached, so
+// one transient Redis blip degrades a single request instead of blanking the
+// leaderboard for the whole revalidate window.
+export async function getTopComparisons(limit: number): Promise<LeaderboardEntry[]> {
   try {
-    const raw = await redis.zrange<string[]>(LEADERBOARD_KEY, 0, limit - 1, {
-      rev: true,
-      withScores: true,
-    })
-    const entries: LeaderboardEntry[] = []
-    for (let i = 0; i < raw.length; i += 2) {
-      const [a, b] = String(raw[i]).split("::")
-      if (!a || !b) continue
-      entries.push({ a, b, count: Number(raw[i + 1]) })
-    }
-    return entries
+    return await getTopComparisonsCached(limit)
   } catch (e) {
     console.error("[leaderboard] getTopComparisons failed:", e)
     return []
   }
 }
-
-// Cached for 60s so a homepage traffic spike doesn't turn into a Redis read
-// per visitor; a comparison's count can lag up to a minute behind reality.
-export const getTopComparisons = unstable_cache(
-  getTopComparisonsUncached,
-  ["leaderboard-top"],
-  { revalidate: 60 }
-)

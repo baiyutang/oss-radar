@@ -240,8 +240,10 @@ async function fetchRepoDataUncached(owner: string, repo: string): Promise<RepoD
 // Using unstable_cache (not the newer "use cache" directive) because "use
 // cache" requires opting into experimental Cache Components in
 // next.config.ts, which this project hasn't done.
+// Bump the version suffix whenever RepoData's shape changes, so stale cache
+// entries with the old shape are never served against the new type.
 export const fetchRepoData = unstable_cache(
   fetchRepoDataUncached,
-  ["fetch-repo-data"],
+  ["fetch-repo-data-v2"],
   { revalidate: 21_600 }
 )

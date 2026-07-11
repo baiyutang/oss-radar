@@ -11,3 +11,7 @@ export function isValidRepoPart(s: string): boolean {
 export function getClientIp(headers: Headers): string {
   return headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown"
 }
+
+export function fmtCompact(n: number): string {
+  return n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n)
+}
