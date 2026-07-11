@@ -1,5 +1,7 @@
 # OSS Radar
 
+[![OSS Radar](https://oss-radar.gokr.io/badge/baiyutang/oss-radar)](https://oss-radar.gokr.io)
+
 用 GitHub 真实数据对比两个开源项目的健康度，帮助你做技术选型决策。
 
 评分方法对齐 [CHAOSS](https://chaoss.community/)（Linux Foundation 发起的开源社区健康度分析工作组）定义的指标，而不是简单比较 star 数。
