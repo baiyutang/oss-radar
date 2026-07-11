@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -40,6 +41,7 @@ export default function RootLayout({
             <a href="https://github.com/baiyutang/oss-radar" target="_blank" rel="noopener noreferrer" className="hover:text-gray-600">GitHub ↗</a>
           </p>
         </footer>
+        <Analytics />
       </body>
     </html>
   );
