@@ -1,4 +1,5 @@
 import { Fragment, Suspense } from "react"
+import type { Metadata } from "next"
 import { headers } from "next/headers"
 import { after } from "next/server"
 import { fetchRepoData, GitHubApiError, type RepoData } from "@/lib/github"
@@ -10,7 +11,6 @@ import { ScoreBar } from "@/components/ScoreBar"
 import { ScoreRing } from "@/components/ScoreRing"
 import { StatCard } from "@/components/StatCard"
 import { CopyLinkButton } from "@/components/CopyLinkButton"
-import { DetailsToggle } from "@/components/DetailsToggle"
 import { isValidRepoPart, getClientIp } from "@/lib/utils"
 import Link from "next/link"
 
@@ -41,6 +41,31 @@ function safeDecodeRepo(raw: string): [string, string] | null {
     return [owner, name]
   } catch {
     return null
+  }
+}
+
+// Built from route params only — no extra API calls, so metadata never slows
+// the page down or burns GitHub quota.
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { repoA, repoB } = await params
+  const parsedA = safeDecodeRepo(repoA)
+  const parsedB = safeDecodeRepo(repoB)
+  if (!parsedA || !parsedB) {
+    return { title: "OSS Radar — 开源项目健康度对比" }
+  }
+  const a = parsedA.join("/")
+  const b = parsedB.join("/")
+  const title = `${a} vs ${b} 对比 — 开源项目健康度评分 | OSS Radar`
+  const description = `${a} 和 ${b} 哪个更值得选？基于 CHAOSS 框架的五维健康度对比：活跃度、社区健康、响应速度、稳定性、采用度，数据来自 GitHub API。`
+  return {
+    title,
+    description,
+    keywords: [a, b, `${a} vs ${b}`, `${parsedA[1]} vs ${parsedB[1]}`, "开源项目对比", "技术选型", "CHAOSS"],
+    openGraph: {
+      title,
+      description,
+      type: "website",
+    },
   }
 }
 
@@ -263,43 +288,41 @@ export default async function ComparePage({ params }: Props) {
         </div>
 
         {/* Per-repo detail cards */}
-        <DetailsToggle>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
-            {sides.map(({ data, meta }) => (
-              <div key={data.full_name} className="bg-white rounded-2xl p-4 border border-gray-100">
-                <div className="text-xs text-gray-400 font-medium mb-3">{data.full_name}</div>
-                <div className="grid grid-cols-2 gap-2 mb-3">
-                  <StatCard label="Stars" value={fmt(data.stars)} />
-                  <StatCard label="Forks" value={fmt(data.forks)} />
-                  <StatCard label="30天提交" value={data.commits_30d} />
-                  <StatCard label="PR关闭率" value={`${Math.round(data.pr_closure_ratio * 100)}%`} sub="merged/(merged+open)" />
-                  <StatCard label="30天贡献者" value={data.contributors_30d} />
-                  <StatCard
-                    label="首次响应"
-                    value={data.issue_response_days !== null ? `${data.issue_response_days.toFixed(1)}天` : "N/A"}
-                    sub="Issue中位数"
-                  />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
+          {sides.map(({ data, meta }) => (
+            <div key={data.full_name} className="bg-white rounded-2xl p-4 border border-gray-100">
+              <div className="text-xs text-gray-400 font-medium mb-3">{data.full_name}</div>
+              <div className="grid grid-cols-2 gap-2 mb-3">
+                <StatCard label="Stars" value={fmt(data.stars)} />
+                <StatCard label="Forks" value={fmt(data.forks)} />
+                <StatCard label="30天提交" value={data.commits_30d} />
+                <StatCard label="PR关闭率" value={`${Math.round(data.pr_closure_ratio * 100)}%`} sub="merged/(merged+open)" />
+                <StatCard label="30天贡献者" value={data.contributors_30d} />
+                <StatCard
+                  label="首次响应"
+                  value={data.issue_response_days !== null ? `${data.issue_response_days.toFixed(1)}天` : "N/A"}
+                  sub="Issue中位数"
+                />
+              </div>
+              <div className="space-y-1.5 text-xs text-gray-500">
+                <div className="flex gap-1.5">
+                  <span className={data.elephant_score >= 70 ? "text-blue-500" : data.elephant_score >= 40 ? "text-amber-500" : "text-rose-400"}>●</span>
+                  <span>{meta.community_signal}</span>
                 </div>
-                <div className="space-y-1.5 text-xs text-gray-500">
-                  <div className="flex gap-1.5">
-                    <span className={data.elephant_score >= 70 ? "text-blue-500" : data.elephant_score >= 40 ? "text-amber-500" : "text-rose-400"}>●</span>
-                    <span>{meta.community_signal}</span>
-                  </div>
-                  <div className="flex gap-1.5">
-                    <span className={data.has_security_policy ? "text-blue-500" : "text-amber-500"}>●</span>
-                    <span>{meta.stability_signal}</span>
-                  </div>
-                  {data.releases[0] && (
-                    <div className="text-gray-400">最新发布：{data.releases[0].tag} ({daysSince(data.releases[0].date)})</div>
-                  )}
-                  <div className="text-gray-400">
-                    核心贡献者：{data.top_contributors.slice(0, 3).map((c) => c.login).join(" · ")}
-                  </div>
+                <div className="flex gap-1.5">
+                  <span className={data.has_security_policy ? "text-blue-500" : "text-amber-500"}>●</span>
+                  <span>{meta.stability_signal}</span>
+                </div>
+                {data.releases[0] && (
+                  <div className="text-gray-400">最新发布：{data.releases[0].tag} ({daysSince(data.releases[0].date)})</div>
+                )}
+                <div className="text-gray-400">
+                  核心贡献者：{data.top_contributors.slice(0, 3).map((c) => c.login).join(" · ")}
                 </div>
               </div>
-            ))}
-          </div>
-        </DetailsToggle>
+            </div>
+          ))}
+        </div>
 
         <div className="text-center text-xs text-gray-300 space-x-2">
           <span>分享此链接即可保存对比结果</span>
