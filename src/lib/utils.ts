@@ -15,3 +15,11 @@ export function getClientIp(headers: Headers): string {
 export function fmtCompact(n: number): string {
   return n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n)
 }
+
+export function daysSince(date: string): string {
+  const d = Math.floor((Date.now() - new Date(date).getTime()) / 86400000)
+  if (d === 0) return "今天"
+  if (d < 30) return `${d}天前`
+  if (d < 365) return `${Math.floor(d / 30)}个月前`
+  return `${Math.floor(d / 365)}年前`
+}

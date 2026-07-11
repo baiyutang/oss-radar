@@ -32,7 +32,9 @@ npm run dev
 |---|---|---|
 | `GITHUB_TOKEN` | 推荐 | GitHub Personal Access Token，无需任何权限范围（仅读公开数据），用于提高 API 速率限制（未认证 60 次/小时 → 认证后 5000 次/小时） |
 | `ANTHROPIC_API_KEY` | 可选 | 配置后对比页会显示 AI 生成的选型建议；不配置时该模块自动隐藏，其余功能不受影响 |
-| `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` | 可选 | 配置后启用 AI 分析的按 IP 限流和首页热门对比统计；不配置时两个功能自动降级为不限流/不统计，不影响核心对比功能 |
+| `ANTHROPIC_BASE_URL` | 可选 | 指向任意 Anthropic 兼容端点。例如 DeepSeek：`https://api.deepseek.com/anthropic/v1`；不设置时使用 Anthropic 官方 API |
+| `AI_MODEL` | 可选 | AI 分析使用的模型，默认 `claude-haiku-4-5`；配合 DeepSeek 端点时设为 `deepseek-chat` |
+| `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` | 可选 | 配置后启用 AI 分析的按 IP 限流、AI 叙述结果缓存（6 小时）和首页热门对比统计；不配置时全部自动降级，不影响核心对比功能 |
 
 ## 技术栈
 

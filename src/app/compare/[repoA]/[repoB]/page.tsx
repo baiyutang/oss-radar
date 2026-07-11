@@ -3,27 +3,18 @@ import type { Metadata } from "next"
 import { headers } from "next/headers"
 import { after } from "next/server"
 import { fetchRepoData, GitHubApiError, type RepoData } from "@/lib/github"
-import { score, scoreMeta, verdict } from "@/lib/scoring"
-import { generateComparison } from "@/lib/ai"
-import { checkNarrativeRateLimit } from "@/lib/ratelimit"
+import { score, scoreMeta, verdict, isCloseCall as isCloseCallFn, DIMENSIONS } from "@/lib/scoring"
+import { resolveNarrative } from "@/lib/ai"
 import { recordComparison } from "@/lib/leaderboard"
 import { ScoreBar } from "@/components/ScoreBar"
 import { ScoreRing } from "@/components/ScoreRing"
 import { StatCard } from "@/components/StatCard"
 import { CopyLinkButton } from "@/components/CopyLinkButton"
-import { isValidRepoPart, getClientIp, fmtCompact } from "@/lib/utils"
+import { isValidRepoPart, getClientIp, fmtCompact, daysSince } from "@/lib/utils"
 import Link from "next/link"
 
 interface Props {
   params: Promise<{ repoA: string; repoB: string }>
-}
-
-function daysSince(date: string): string {
-  const d = Math.floor((Date.now() - new Date(date).getTime()) / 86400000)
-  if (d === 0) return "今天"
-  if (d < 30) return `${d}天前`
-  if (d < 365) return `${Math.floor(d / 30)}个月前`
-  return `${Math.floor(d / 365)}年前`
 }
 
 function safeDecodeRepo(raw: string): [string, string] | null {
@@ -65,6 +56,17 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
 }
 
+function NarrativeCard({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="bg-white rounded-2xl p-5 mb-5 border border-gray-100">
+      <div className="text-xs text-blue-600 font-medium mb-2">AI 综合分析</div>
+      {children}
+    </div>
+  )
+}
+
+// Purely presentational — the cache/rate-limit/generate pipeline lives in
+// lib/ai.ts (resolveNarrative).
 async function Narrative({
   dataA, scoreA, dataB, scoreB, isCloseCall,
 }: {
@@ -75,49 +77,39 @@ async function Narrative({
   isCloseCall: boolean
 }) {
   const ip = getClientIp(await headers())
-  const { allowed, retryAfterMinutes } = await checkNarrativeRateLimit(ip)
+  const result = await resolveNarrative(dataA, scoreA, dataB, scoreB, isCloseCall, ip)
 
-  if (!allowed) {
+  if (result.status === "unavailable") return null
+
+  if (result.status === "rate_limited") {
     return (
       <div className="bg-amber-50 rounded-2xl p-5 mb-5 border border-amber-100">
         <div className="text-xs text-amber-600 font-medium mb-1">AI 综合分析</div>
         <p className="text-amber-700 text-sm">
-          AI 分析请求较为频繁，请约 {retryAfterMinutes} 分钟后重试 — 评分数据不受影响。
+          AI 分析请求较为频繁，请约 {result.retryAfterMinutes} 分钟后重试 — 评分数据不受影响。
         </p>
       </div>
     )
   }
 
-  const narrative = await generateComparison(dataA, scoreA, dataB, scoreB, isCloseCall)
-  if (!narrative) return null
   return (
-    <div className="bg-white rounded-2xl p-5 mb-5 border border-gray-100">
-      <div className="text-xs text-blue-600 font-medium mb-2">AI 综合分析</div>
-      <p className="text-gray-700 text-sm leading-relaxed">{narrative}</p>
-    </div>
+    <NarrativeCard>
+      <p className="text-gray-700 text-sm leading-relaxed">{result.text}</p>
+    </NarrativeCard>
   )
 }
 
 function NarrativeSkeleton() {
   return (
-    <div className="bg-white rounded-2xl p-5 mb-5 border border-gray-100">
-      <div className="text-xs text-blue-600 font-medium mb-2">AI 综合分析</div>
+    <NarrativeCard>
       <div className="space-y-2 animate-pulse">
         <div className="h-3 bg-gray-100 rounded w-full" />
         <div className="h-3 bg-gray-100 rounded w-5/6" />
         <div className="h-3 bg-gray-100 rounded w-2/3" />
       </div>
-    </div>
+    </NarrativeCard>
   )
 }
-
-const DIMENSIONS: { key: keyof ReturnType<typeof score>; label: string; basis: string }[] = [
-  { key: "activity",       label: "活跃度",   basis: "近30天提交数 + PR合并速度 + PR关闭率（CHAOSS: Change Request Closure Ratio）" },
-  { key: "community",      label: "社区健康", basis: "贡献者集中度（Bus Factor）× 企业多元性（Elephant Factor），来源：CHAOSS" },
-  { key: "responsiveness", label: "响应速度", basis: "Issue 首次获得非作者回复的中位天数（CHAOSS: Time to First Response）" },
-  { key: "stability",      label: "稳定性",   basis: "发布频率 + 是否有 SECURITY.md 安全策略（CHAOSS: Release Frequency）" },
-  { key: "adoption",       label: "采用度",   basis: "Stars 和 Forks 数量（对数缩放），反映社区实际使用规模" },
-]
 
 export default async function ComparePage({ params }: Props) {
   const { repoA, repoB } = await params
@@ -176,10 +168,7 @@ export default async function ComparePage({ params }: Props) {
   }
 
   const winnerTotal = scoreA.total > scoreB.total ? "a" : scoreB.total > scoreA.total ? "b" : "tie"
-  // Below this gap, the two projects are close enough that calling one a
-  // clear "leader" would overstate the confidence the data supports.
-  const CLOSE_SCORE_GAP = 10
-  const isCloseCall = Math.abs(scoreA.total - scoreB.total) < CLOSE_SCORE_GAP
+  const isCloseCall = isCloseCallFn(scoreA, scoreB)
 
   // isLeader drives every winner visual (border, badge, ring) from one place.
   const sides = [

@@ -120,3 +120,26 @@ export function verdict(s: ScoreBreakdown): string {
   if (s.total >= 38) return "维护中"
   return "需关注"
 }
+
+// Below this gap, the two projects are close enough that calling one a clear
+// "leader" would overstate the confidence the data supports. Consumers (UI
+// badge, AI narrative tone) must all read the same threshold from here.
+const CLOSE_SCORE_GAP = 10
+
+export function isCloseCall(a: ScoreBreakdown, b: ScoreBreakdown): boolean {
+  return Math.abs(a.total - b.total) < CLOSE_SCORE_GAP
+}
+
+export interface DimensionMeta {
+  key: keyof ScoreBreakdown
+  label: string
+  basis: string
+}
+
+export const DIMENSIONS: DimensionMeta[] = [
+  { key: "activity",       label: "活跃度",   basis: "近30天提交数 + PR合并速度 + PR关闭率（CHAOSS: Change Request Closure Ratio）" },
+  { key: "community",      label: "社区健康", basis: "贡献者集中度（Bus Factor）× 企业多元性（Elephant Factor），来源：CHAOSS" },
+  { key: "responsiveness", label: "响应速度", basis: "Issue 首次获得非作者回复的中位天数（CHAOSS: Time to First Response）" },
+  { key: "stability",      label: "稳定性",   basis: "发布频率 + 是否有 SECURITY.md 安全策略（CHAOSS: Release Frequency）" },
+  { key: "adoption",       label: "采用度",   basis: "Stars 和 Forks 数量（对数缩放），反映社区实际使用规模" },
+]

@@ -11,7 +11,8 @@ const GITHUB_API = "https://api.github.com"
 // whichever repo already succeeded is served from cache the second time.
 const FETCH_TIMEOUT_MS = 20_000
 
-const headers: HeadersInit = {
+// Shared by this module and app/api/search — one place to change auth.
+export const githubApiHeaders: HeadersInit = {
   Accept: "application/vnd.github+json",
   ...(process.env.GITHUB_TOKEN
     ? { Authorization: `Bearer ${process.env.GITHUB_TOKEN}` }
@@ -64,7 +65,7 @@ async function get<T>(path: string, optional = false): Promise<T> {
   let res: Response
   try {
     res = await fetch(`${GITHUB_API}${path}`, {
-      headers,
+      headers: githubApiHeaders,
       cache: "no-store",
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     })
